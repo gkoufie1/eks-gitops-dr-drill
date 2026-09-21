@@ -1,0 +1,19 @@
+# Terraform / Terragrunt
+**/.terraform/
+**/.terragrunt-cache/
+*.tfstate
+*.tfstate.backup
+*.tfstate.lock.info
+.terraform.lock.hcl
+backend.tf
+provider.tf
+
+# Kubeconfig
+kubeconfig*
+*.kubeconfig
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
