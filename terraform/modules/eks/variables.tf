@@ -32,6 +32,11 @@ variable "private_subnet_ids" {
 variable "allowed_cidr_blocks" {
   description = "CIDR blocks allowed to reach the EKS public API endpoint — set to your own IP/32, never left at 0.0.0.0/0"
   type        = list(string)
+
+  validation {
+    condition     = !contains(var.allowed_cidr_blocks, "0.0.0.0/0")
+    error_message = "allowed_cidr_blocks cannot include 0.0.0.0/0 — set EKS_ALLOWED_CIDR to your own IP/32 before running terragrunt (see terraform/live/dev/eks/terragrunt.hcl)."
+  }
 }
 
 variable "tags" {

@@ -16,10 +16,42 @@ you show your work? The build order below mirrors real platform-engineering
 sequencing — network, then cluster, then GitOps delivery, then the stateful
 piece that makes a DR drill meaningful, then observability, then a cost pass.
 
+## A real snag: region
+
+The first `terragrunt apply` failed — not on our code, on AWS's default
+account limit of 5 VPCs per region. `us-east-1` was already at 5 (three
+leftover VPCs from an earlier course exercise, a `main-vpc`, and the
+account's default VPC). Rather than delete anything without checking what
+depended on it first, or wait on a quota increase, this project deploys to
+**`us-east-2`** instead — the Terraform state bucket stays in `us-east-1`
+(already bootstrapped, and a state bucket's region never has to match its
+resources' region), only the actual VPC/EKS/NAT move.
+
+## A real snag: CoreDNS stuck Pending
+
+After the cluster and all three Fargate profiles finished applying,
+`kubectl get pods -n kube-system` showed both CoreDNS pods `0/1 Pending`,
+`PodScheduled: False`, and — the telling detail — **zero scheduling events**.
+Not "no node available," just nothing, ever.
+
+**Why:** EKS auto-deploys the CoreDNS addon the moment the cluster control
+plane comes up — before Terraform had finished creating the `kube-system`
+Fargate profile a few seconds later. Fargate scheduling isn't the normal
+kube-scheduler; it's a mutating webhook that only fires at pod *creation*
+time. A pod born before its namespace had a matching profile never gets
+retried — there's no EC2 fallback for it to land on either, so it just sits
+Pending forever with nothing to report.
+
+**Fix:** `kubectl delete pod -n kube-system -l k8s-app=kube-dns` — the
+Deployment recreates them, and this time, with the profile already `ACTIVE`,
+the webhook claims them correctly. Confirmed `1/1 Running` on real Fargate
+nodes (`fargate-ip-10-0-...`) within about a minute, stable across 2+ minutes
+of checks.
+
 ## Architecture (Phase 1)
 
 ```
-                         AWS (us-east-1)
+                         AWS (us-east-2)
                     ┌─────────────────────────────────────┐
                     │  VPC (10.0.0.0/16)                    │
                     │                                        │
@@ -57,9 +89,9 @@ included, not copied.
       `kube-system`, `argocd`, `apps` — see ADR 001 for why no node group)
 - [x] Terragrunt wiring: `live/dev/vpc`, `live/dev/eks`, auto-bootstrapped
       remote state
-- [ ] Deploy Phase 1, verify cluster reachable and CoreDNS actually running
-      on Fargate (the real failure mode: CoreDNS stuck `Pending` with no
-      matching profile)
+- [x] Deploy Phase 1, verify cluster reachable and CoreDNS actually running
+      on Fargate — hit a real CoreDNS-stuck-Pending bug along the way (see
+      above), not the one originally anticipated, fixed and verified
 - [ ] Argo CD installed via its own Fargate profile, GitOps-deploys a demo
       workload into `apps`
 - [ ] Aurora (Postgres) provisioned, demo workload wired to it via IRSA —
@@ -105,9 +137,10 @@ eks-gitops-dr-drill/
 ## Deploying (Phase 1)
 
 ```bash
-# 1. Set your own IP before applying — 0.0.0.0/0 is a real finding, not a demo one
-curl ifconfig.me
-# then edit terraform/live/dev/eks/terragrunt.hcl: allowed_cidr_blocks = ["YOUR_IP/32"]
+# 1. Set your own IP before applying — passed via env var, never committed
+export EKS_ALLOWED_CIDR="$(curl -4 -s ifconfig.me)/32"
+# a Terraform variable validation hard-fails the apply if this is left at
+# 0.0.0.0/0 — see terraform/modules/eks/variables.tf
 
 cd terraform/live/dev/vpc
 terragrunt init
@@ -117,7 +150,7 @@ cd ../eks
 terragrunt init
 terragrunt apply   # ~10-15 min for the EKS control plane
 
-aws eks update-kubeconfig --name eks-gitops-dr-drill-dev --region us-east-1
+aws eks update-kubeconfig --name eks-gitops-dr-drill-dev --region us-east-2
 kubectl get pods -n kube-system   # verify CoreDNS is Running, not Pending
 ```
 

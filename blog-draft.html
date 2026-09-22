@@ -1,0 +1,386 @@
+<title>The DR Drill</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #f7f7f4;
+    --surface: #ffffff;
+    --surface-2: #f0efe9;
+    --text: #16181d;
+    --text-dim: #5b6270;
+    --border: #dedcd3;
+    --accent: #0d7d72;
+    --accent-soft: #d9efec;
+    --warn: #a15c00;
+    --warn-soft: #f5e6cf;
+    --critical: #b3261e;
+    --critical-soft: #fbe2e0;
+    --shadow: 0 1px 2px rgba(20,20,15,0.06), 0 8px 24px -12px rgba(20,20,15,0.12);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12141a;
+      --surface: #1a1d25;
+      --surface-2: #20242e;
+      --text: #e7e8ea;
+      --text-dim: #9aa1ae;
+      --border: #2b303b;
+      --accent: #5fd9c9;
+      --accent-soft: #1d3634;
+      --warn: #e8a94a;
+      --warn-soft: #3a2f18;
+      --critical: #f0857c;
+      --critical-soft: #3a1e1c;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #12141a;
+    --surface: #1a1d25;
+    --surface-2: #20242e;
+    --text: #e7e8ea;
+    --text-dim: #9aa1ae;
+    --border: #2b303b;
+    --accent: #5fd9c9;
+    --accent-soft: #1d3634;
+    --warn: #e8a94a;
+    --warn-soft: #3a2f18;
+    --critical: #f0857c;
+    --critical-soft: #3a1e1c;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Serif', Georgia, serif;
+    line-height: 1.65;
+    padding-inline: 20px;
+    padding-block: 40px;
+  }
+
+  .page {
+    max-width: 700px;
+    margin: 0 auto;
+  }
+
+  .kicker {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .kicker::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: inline-block;
+  }
+
+  h1 {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 700;
+    font-size: clamp(30px, 6vw, 44px);
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    margin: 0 0 14px 0;
+  }
+
+  .subhead {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 17px;
+    color: var(--text-dim);
+    max-width: 56ch;
+    margin: 0 0 28px 0;
+  }
+
+  .status-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    margin-bottom: 40px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+  }
+
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-dim);
+  }
+
+  .status-item b { color: var(--text); font-weight: 600; }
+
+  .status-item .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+  }
+  .dot.done { background: var(--accent); }
+  .dot.pending { background: var(--warn); }
+
+  section.act {
+    margin-bottom: 52px;
+  }
+
+  .act-eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  h2 {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 600;
+    font-size: 26px;
+    text-wrap: balance;
+    margin: 0 0 16px 0;
+  }
+
+  p { margin: 0 0 16px 0; font-size: 16.5px; }
+  p.lede { font-size: 18px; color: var(--text); }
+
+  .shot {
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    margin: 20px 0;
+    box-shadow: var(--shadow);
+  }
+
+  .shot-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 8px;
+  }
+
+  .shot-label::before { content: "▭"; font-size: 13px; }
+
+  .shot p { font-family: 'IBM Plex Sans', sans-serif; font-size: 14.5px; color: var(--text-dim); margin: 0 0 8px 0; }
+  .shot p:last-child { margin-bottom: 0; }
+  .shot .caption-prompt { color: var(--text); font-style: italic; }
+
+  .shot.critical { border-color: var(--critical); background: var(--critical-soft); }
+  .shot.critical .shot-label { color: var(--critical); }
+  .shot.critical p { color: var(--text); opacity: 0.85; }
+
+  .fill {
+    font-family: 'IBM Plex Mono', monospace;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 1px 7px;
+    font-size: 0.92em;
+    color: var(--accent);
+  }
+
+  .beat {
+    font-style: italic;
+    color: var(--text-dim);
+    border-left: 2px solid var(--accent);
+    padding-left: 14px;
+    margin: 24px 0;
+    font-size: 16px;
+  }
+
+  table.shotlist {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 13.5px;
+    margin: 8px 0 4px 0;
+  }
+  table.shotlist th, table.shotlist td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.shotlist th {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    font-weight: 500;
+  }
+  table.shotlist td.n { font-family: 'IBM Plex Mono', monospace; color: var(--accent); white-space: nowrap; }
+  .shotlist-wrap { overflow-x: auto; margin: 20px 0 40px; border: 1px solid var(--border); border-radius: 10px; padding: 4px 14px; background: var(--surface); box-shadow: var(--shadow); }
+
+  footer {
+    border-top: 1px solid var(--border);
+    padding-top: 20px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  @media (max-width: 480px) {
+    h1 { font-size: 28px; }
+    h2 { font-size: 22px; }
+    .status-bar { font-size: 11.5px; }
+  }
+</style>
+
+<div class="page">
+
+  <div class="kicker">Draft — not yet published</div>
+  <h1>The DR Drill</h1>
+  <p class="subhead">A blog draft: a recruiter's outreach, and the EKS/Fargate + Aurora build written to answer it. Screenshot and number slots are marked below — fill them in as each phase actually happens, then this becomes the real post.</p>
+
+  <div class="status-bar">
+    <div class="status-item"><span class="dot done"></span>Terraform/Terragrunt scaffold — <b>written</b></div>
+    <div class="status-item"><span class="dot pending"></span>Cluster deploy — <b>pending</b></div>
+    <div class="status-item"><span class="dot pending"></span>DR drill — <b>pending</b></div>
+    <div class="status-item"><span class="dot pending"></span>13 screenshots — <b>0 / 13 captured</b></div>
+  </div>
+
+  <section class="act">
+    <div class="act-eyebrow"><span>ACT 01 — THE ASK</span><span>~150 words</span></div>
+    <h2>The message</h2>
+    <p class="lede">A recruiter found me on LinkedIn for a Lead DevOps/SRE role. The stack: EKS, Fargate, Aurora, Terraform/Terragrunt, Argo CD, GitHub Actions, Datadog. The ask underneath the tool list: can you build and run a reliability practice, not just click deploy.</p>
+    <p>I'd built pieces of this before, separately. I hadn't built the whole story in one place — something that actually breaks, and a real number for how fast I got it back. So instead of just replying with a resume, I decided to build the story first.</p>
+
+    <div class="shot">
+      <div class="shot-label">Screenshot 1 of 13</div>
+      <p>The recruiter's LinkedIn message — <span class="caption-prompt">decide before publishing whether to blur their name/photo or paraphrase instead.</span></p>
+    </div>
+
+    <p>Here's what the job actually asked for, next to what I had walking in:</p>
+    <div class="shotlist-wrap">
+      <table class="shotlist">
+        <tr><th>Asked for</th><th>Had already</th><th>Built for this</th></tr>
+        <tr><td>EKS</td><td>Kubernetes (local)</td><td>✓ Fargate-only cluster</td></tr>
+        <tr><td>Fargate</td><td>—</td><td>✓ no managed node group at all</td></tr>
+        <tr><td>Aurora / DR</td><td>—</td><td>✓ real failover + measured RTO</td></tr>
+        <tr><td>Terraform / Terragrunt</td><td>Terraform only</td><td>✓ Terragrunt-wrapped</td></tr>
+        <tr><td>Argo CD</td><td>—</td><td>✓ GitOps deploy</td></tr>
+        <tr><td>Datadog</td><td>Prometheus/Grafana</td><td>✓ Fargate-integration dashboard + alert</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="act">
+    <div class="act-eyebrow"><span>ACT 02 — THE BUILD</span><span>~300 words</span></div>
+    <h2>Standing it up</h2>
+    <p class="lede">I started with the network, then the cluster, then the delivery pipeline — the same order a real platform team would, not the order that looks best in a demo.</p>
+
+    <div class="shot">
+      <div class="shot-label">Screenshot 2 of 13</div>
+      <p><span class="caption-prompt">`terragrunt run-all plan` output</span>, full resource list, before anything exists. Caption idea: "before I touch AWS, here's the exact list of what's about to get created — no surprises."</p>
+    </div>
+
+    <p>One decision worth explaining up front: I ran this as a <b>Fargate-only</b> cluster — no EC2 node group at all. AWS runs every pod in its own micro-VM; I don't patch or size servers. The real tradeoff — no DaemonSets, so the observability agent later needs a different install path — is documented in <span class="fill">ADR 001</span> rather than glossed over.</p>
+
+    <div class="shot">
+      <div class="shot-label">Screenshot 3 of 13</div>
+      <p>AWS Console → VPC → Resource Map. <span class="caption-prompt">Two AZs, public/private split, one NAT per AZ.</span></p>
+    </div>
+
+    <p>The first real snag showed up exactly where I expected it to: CoreDNS came up <span class="fill">Pending / Running — pick whichever actually happened</span> until its namespace had a matching Fargate profile. A Fargate-only cluster has no fallback node to catch anything that isn't explicitly scheduled somewhere.</p>
+
+    <div class="shot">
+      <div class="shot-label">Screenshot 4 of 13</div>
+      <p><span class="fill">kubectl get pods -n kube-system</span> — <span class="caption-prompt">if CoreDNS was ever stuck Pending, that shot is worth more here than a clean success would be.</span></p>
+    </div>
+
+    <p>With the cluster up, Argo CD took over deployment — it watches the repo and reconciles the cluster to match, instead of me running <span class="fill">kubectl apply</span> by hand.</p>
+
+    <div class="shot">
+      <div class="shot-label">Screenshot 5 of 13</div>
+      <p>Argo CD UI, app tile reading <b>Synced / Healthy</b>.</p>
+    </div>
+
+    <div class="shot">
+      <div class="shot-label">Screenshot 6 of 13</div>
+      <p><span class="caption-prompt">Git commit timestamp next to Argo CD's sync timestamp, seconds apart</span> — the actual proof of GitOps, not just an architecture diagram claiming it.</p>
+    </div>
+  </section>
+
+  <section class="act">
+    <div class="act-eyebrow"><span>ACT 03 — THE DRILL</span><span>~350 words, the centerpiece</span></div>
+    <h2>Breaking it on purpose</h2>
+    <p class="lede">Anyone can deploy a database. The part worth writing about is what happens when it goes away mid-traffic — because that's the actual job.</p>
+
+    <div class="beat">Target RTO going in: <span class="fill">[state the number before the drill, not after]</span></div>
+
+    <div class="shot critical">
+      <div class="shot-label">Screenshot 8 of 13 — the failure</div>
+      <p>Terminal output of the forced Aurora failover, timestamped.</p>
+    </div>
+
+    <div class="shot critical">
+      <div class="shot-label">Screenshot 9 of 13 — the dip</div>
+      <p>Datadog dashboard mid-incident. <span class="caption-prompt">This is the shot the whole post hangs on — the real latency/error graph proving something actually broke.</span></p>
+    </div>
+
+    <div class="shot">
+      <div class="shot-label">Screenshot 10 of 13</div>
+      <p>The Datadog alert firing — <span class="caption-prompt">proof the alerting caught it, not just the dashboard after the fact.</span></p>
+    </div>
+
+    <div class="shot">
+      <div class="shot-label">Screenshot 11 of 13 — recovery</div>
+      <p>Service healthy again. Recovered in <span class="fill">[real elapsed time]</span> against a <span class="fill">[stated target]</span> RTO.</p>
+    </div>
+
+    <p>Whatever the number turns out to be, it goes in as-measured — including if it missed the target. A missed number with a clear explanation of why is more credible to an SRE hiring manager than a suspiciously clean one.</p>
+  </section>
+
+  <section class="act">
+    <div class="act-eyebrow"><span>ACT 04 — THE NUMBERS</span><span>~150 words</span></div>
+    <h2>What it cost, and what came down</h2>
+    <p class="lede">The job description said "cost optimization." The honest version of that isn't a slide — it's a receipt.</p>
+
+    <div class="shot">
+      <div class="shot-label">Screenshot 12 of 13</div>
+      <p>Cost Explorer, actual session spend: <span class="fill">$[real number]</span> for the full build.</p>
+    </div>
+
+    <div class="shot">
+      <div class="shot-label">Screenshot 13 of 13</div>
+      <p><span class="fill">terragrunt run-all destroy</span> output, or the AWS Console showing zero resources left — <span class="caption-prompt">torn down the same session it was built in.</span></p>
+    </div>
+  </section>
+
+  <section class="act">
+    <div class="act-eyebrow"><span>CLOSING</span><span>~80 words</span></div>
+    <h2>Back to the recruiter</h2>
+    <p>The reply I'd send isn't "I know these tools." It's: here's a service I deployed with GitOps, a database I killed on purpose, and the real number for how fast I got it back — plus what it cost and that I cleaned up after myself. That's the version of "Lead SRE" this role is actually asking about, and it's easier to defend in an interview than any bullet point would be.</p>
+  </section>
+
+  <footer>
+    eks-gitops-dr-drill — draft v1 — update this page as each act actually happens
+  </footer>
+
+</div>
