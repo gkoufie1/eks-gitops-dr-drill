@@ -260,8 +260,9 @@
 
   <div class="status-bar">
     <div class="status-item"><span class="dot done"></span>Terraform/Terragrunt scaffold — <b>written</b></div>
-    <div class="status-item"><span class="dot pending"></span>Cluster deploy — <b>pending</b></div>
-    <div class="status-item"><span class="dot pending"></span>DR drill — <b>pending</b></div>
+    <div class="status-item"><span class="dot done"></span>Cluster + Argo CD + Aurora — <b>live, verified</b></div>
+    <div class="status-item"><span class="dot done"></span>DR drill — <b>MET, 39.032s vs 2min target</b></div>
+    <div class="status-item"><span class="dot pending"></span>Datadog — <b>not started</b></div>
     <div class="status-item"><span class="dot pending"></span>13 screenshots — <b>0 / 13 captured</b></div>
   </div>
 
@@ -307,11 +308,11 @@
       <p>AWS Console → VPC → Resource Map. <span class="caption-prompt">Two AZs, public/private split, one NAT per AZ.</span></p>
     </div>
 
-    <p>The first real snag showed up exactly where I expected it to: CoreDNS came up <span class="fill">Pending / Running — pick whichever actually happened</span> until its namespace had a matching Fargate profile. A Fargate-only cluster has no fallback node to catch anything that isn't explicitly scheduled somewhere.</p>
+    <p>The first real snag showed up exactly where I expected it to, twice — once on the first deploy, then identically again on a later redeploy, which is what confirmed it wasn't a fluke: CoreDNS came up <b>stuck Pending</b>, zero scheduling events, until I deleted the pods so they'd be recreated after their Fargate profile had actually finished applying. EKS auto-deploys CoreDNS the instant the control plane is up — before Terraform necessarily finishes the matching profile a few seconds later. A Fargate-only cluster has no fallback node to catch anything born too early.</p>
 
     <div class="shot">
       <div class="shot-label">Screenshot 4 of 13</div>
-      <p><span class="fill">kubectl get pods -n kube-system</span> — <span class="caption-prompt">if CoreDNS was ever stuck Pending, that shot is worth more here than a clean success would be.</span></p>
+      <p><span class="fill">kubectl get pods -n kube-system</span> showing <code>0/1 Pending</code> — <span class="caption-prompt">can't be recreated live anymore since it's already fixed; pair a screenshot of the "after" (Running) state with the git commit that documents the "before."</span></p>
     </div>
 
     <p>With the cluster up, Argo CD took over deployment — it watches the repo and reconciles the cluster to match, instead of me running <span class="fill">kubectl apply</span> by hand.</p>
@@ -328,33 +329,37 @@
   </section>
 
   <section class="act">
-    <div class="act-eyebrow"><span>ACT 03 — THE DRILL</span><span>~350 words, the centerpiece</span></div>
+    <div class="act-eyebrow"><span>ACT 03 — THE DRILL</span><span>done — MET, 39.032s</span></div>
     <h2>Breaking it on purpose</h2>
     <p class="lede">Anyone can deploy a database. The part worth writing about is what happens when it goes away mid-traffic — because that's the actual job.</p>
 
-    <div class="beat">Target RTO going in: <span class="fill">[state the number before the drill, not after]</span></div>
+    <div class="beat">Target RTO going in: <b>2 minutes</b> — set before the drill, in the runbook, based on AWS's own documented typical Aurora failover times.</div>
+
+    <p>I stood up continuous traffic against the app's <code>/readyz</code> endpoint — the one that actually touches Aurora, not just a liveness check — polling every ~2.3 seconds through a tunnel, logging every request's timestamp and status. Then, with steady <code>200</code>s confirmed, I issued a real <code>aws rds failover-db-cluster</code>. Not a reboot. Not a simulation. A genuine forced promotion of the standby instance, verified afterward by checking that the writer and reader roles in AWS had actually swapped.</p>
 
     <div class="shot critical">
       <div class="shot-label">Screenshot 8 of 13 — the failure</div>
-      <p>Terminal output of the forced Aurora failover, timestamped.</p>
+      <p>Terminal output of <code>aws rds failover-db-cluster</code>, timestamped <b>19:53:38.819 UTC</b> — this is T+0 for everything that follows.</p>
     </div>
 
-    <div class="shot critical">
-      <div class="shot-label">Screenshot 9 of 13 — the dip</div>
-      <p>Datadog dashboard mid-incident. <span class="caption-prompt">This is the shot the whole post hangs on — the real latency/error graph proving something actually broke.</span></p>
+    <p>For about 10.5 seconds, nothing happened — the app kept serving fine while Aurora's internal cutover was still in progress. Then 5 requests in a row came back <code>503</code>, each one a clean, honest <code>{"detail":"database unreachable"}</code> from the app itself — not a hang, not a generic error. Real downtime: about 16 seconds. Then it started working again, and stayed working.</p>
+
+    <div class="shot">
+      <div class="shot-label">Screenshot 9 of 13 — the dip (pending Datadog)</div>
+      <p><span class="caption-prompt">Not available yet — Datadog isn't built. This drill's evidence currently comes from the app's own timestamped request log instead, which is real but less visual. Revisit once Datadog exists — it may be worth re-running the drill once there's a dashboard to capture, since this run's log is the record, not a re-creatable live state.</span></p>
     </div>
 
     <div class="shot">
-      <div class="shot-label">Screenshot 10 of 13</div>
-      <p>The Datadog alert firing — <span class="caption-prompt">proof the alerting caught it, not just the dashboard after the fact.</span></p>
+      <div class="shot-label">Screenshot 10 of 13 (pending Datadog)</div>
+      <p><span class="caption-prompt">Same as above — an alert-firing screenshot needs Datadog in place first.</span></p>
     </div>
 
     <div class="shot">
       <div class="shot-label">Screenshot 11 of 13 — recovery</div>
-      <p>Service healthy again. Recovered in <span class="fill">[real elapsed time]</span> against a <span class="fill">[stated target]</span> RTO.</p>
+      <p><span class="fill">aws rds describe-db-clusters</span> output showing the writer/reader roles swapped — <span class="caption-prompt">the AWS-side proof, separate from the app's own signal.</span> Recovered in <b>39.032 seconds</b> against a <b>2-minute</b> target RTO — <b>MET</b>, with real margin, not a photo finish.</p>
     </div>
 
-    <p>Whatever the number turns out to be, it goes in as-measured — including if it missed the target. A missed number with a clear explanation of why is more credible to an SRE hiring manager than a suspiciously clean one.</p>
+    <p>The honest reading isn't just the headline number. There's a real gap between when the service actually came back (first successful request, ~29 seconds in) and when I'd call it confirmed-stable (5 successes in a row, ~39 seconds in) — that 10-second buffer against a single lucky response mid-flap is part of the measurement discipline, not padding. If the number had missed the target, it goes in anyway, with whatever caused it. It didn't this time, and it's still reported as measured, not as a foregone conclusion.</p>
   </section>
 
   <section class="act">
@@ -380,7 +385,7 @@
   </section>
 
   <footer>
-    eks-gitops-dr-drill — draft v1 — update this page as each act actually happens
+    eks-gitops-dr-drill — draft v2 — Acts 1-3 have real content and numbers now; Datadog (Act 3 shots 9-10, Act 2's baseline) and the final cost/teardown shots (Act 4) are still ahead
   </footer>
 
 </div>
