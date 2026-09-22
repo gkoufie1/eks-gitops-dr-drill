@@ -4,10 +4,13 @@ A GitOps-deployed service on EKS Fargate, backed by Aurora, with a real
 disaster-recovery drill: kill the database mid-traffic, restore it, and
 measure actual recovery time against a target RTO — not a claimed one.
 
-**Status:** 🚧 In progress — the DR drill itself is done: **target RTO 2
-minutes, measured 39.032 seconds, MET.** Full results in
-[`docs/dr-drill-001-results.md`](docs/dr-drill-001-results.md). Only
-Datadog is left — see the build log below.
+**Status:** ✅ Done. **DR drill: target RTO 2 minutes, measured 39.032
+seconds, MET** — full results in
+[`docs/dr-drill-001-results.md`](docs/dr-drill-001-results.md). Datadog was
+deliberately not deployed — no account/API key existed for this project,
+so the real integration path is documented instead of faked, in
+[`ADR 002`](docs/adr/002-datadog-not-deployed.md). Everything is torn
+down and independently verified at $0 — see the final cost pass below.
 
 ## Why this exists
 
@@ -159,38 +162,55 @@ included, not copied.
       recovery signal. Full breakdown, timestamps, and the honest reading
       of what each number means in
       [`docs/dr-drill-001-results.md`](docs/dr-drill-001-results.md).
-- [ ] Datadog: cluster + Aurora instrumented, one real dashboard, one real
-      alert (Fargate needs its own integration path — no DaemonSet, see
-      ADR 001)
-- [x] Cost pass (Phase 1): ~$0.30-0.35, calculated from published us-east-2
-      rates × measured resource lifetime (Cost Explorer lags real time by
-      up to 24h, so this isn't the billed figure yet — see the Cost table)
-- [x] Phase 1 teardown, verified at $0 — `terragrunt destroy` exit code
-      alone isn't proof; confirmed separately via `aws eks list-clusters`,
-      `describe-vpcs`, `describe-nat-gateways`, and `describe-addresses`,
-      all tagged `Project=eks-gitops-dr-drill`, all empty
+- [x] Datadog — **deliberately not deployed.** No Datadog account/API key
+      existed for this project, and shipping a fabricated or half-wired
+      integration would be exactly the overclaim this project has tried
+      not to make anywhere else. [`ADR 002`](docs/adr/002-datadog-not-deployed.md)
+      documents the real integration path instead: a sidecar per pod (not
+      a DaemonSet — Fargate can't run one), a separate AWS-integration tile
+      for Aurora's CloudWatch metrics, and the real cost consequence of
+      adding a sidecar to every pod's Fargate billing. Honest "designed,
+      not built" beats a demo that only looks wired up.
+- [x] Final cost pass — see the full breakdown below
+- [x] Full teardown, all phases — Aurora (writer + reader), EKS, VPC, and
+      the CI/ECR resources all destroyed, in reverse-dependency order
+      (Aurora → EKS → VPC, since Aurora depended on both). `terragrunt
+      destroy` exit codes alone aren't proof; confirmed independently via
+      `aws eks list-clusters`, `describe-db-clusters`, `describe-vpcs`,
+      `describe-nat-gateways`, `describe-addresses`, and
+      `describe-repositories`, all empty, all tagged
+      `Project=eks-gitops-dr-drill`. `us-east-1`'s VPC count unchanged at
+      5, confirming the earlier region switch never touched anything there.
 
-**Phases 1-4 (VPC/EKS, Argo CD, Aurora + a real IAM-authenticated app, and
-the DR drill itself) are complete and verified.** Only Datadog → final cost
-pass are left, picking up in a future session — each one gets its own
-deploy → verify → document →
-(destroy or hand off to the next phase) cycle, same as the rest of this
-project.
+**All phases (VPC/EKS, Argo CD, Aurora + a real IAM-authenticated app, the
+DR drill, and Datadog's honest non-deployment) are complete.** This project
+is done — built across two sessions, real bugs hit and fixed at every
+phase, and torn down to $0 both times.
 
-## Cost (Phase 1) — actual, not estimated
+## Final cost — actual, not estimated
 
-| Resource | Rate | Ran for | Cost |
+Two separate build sessions, each fully torn down before the next began:
+
+| Session | What ran | Duration | Cost |
 |---|---|---|---|
-| EKS control plane | $0.10/hr flat | ~1.0 hr | ~$0.10 |
-| 2× NAT Gateway | ~$0.045/hr each | ~2.1 hr | ~$0.19 |
-| Fargate (2× CoreDNS pod) | Per vCPU/memory-second | ~1.0 hr | ~$0.03 |
-| **Total** | | | **~$0.30-0.35** |
+| Session 1 (Phase 1 only) | VPC + EKS + CoreDNS | ~1 hr | ~$0.30-0.35 |
+| Session 2 (Phases 2-4) | VPC + EKS + Argo CD + Aurora (writer+reader) + demo app + DR drill | ~2.7 hr | ~$0.96 |
+| **Total, whole project** | | | **~$1.30** |
 
-Calculated from AWS's published `us-east-2` rates against each resource's
-actual creation/destruction timestamps (pulled via `aws eks describe-cluster`
-and `aws ec2 describe-nat-gateways`) — not yet reflected in Cost Explorer,
-which lags real time by up to 24h. Fully destroyed and independently
-verified at $0 (see the build log) at the end of this session.
+| Resource | Rate | Notes |
+|---|---|---|
+| EKS control plane | $0.10/hr flat | Bills regardless of usage |
+| 2× NAT Gateway | ~$0.045/hr each | One per AZ for real HA |
+| Aurora Serverless v2 (writer + reader) | ~$0.12/ACU-hr, 0.5 ACU floor each | Reader added specifically for the DR drill, torn down with everything else |
+| Fargate (CoreDNS, Argo CD's 7 components, demo app) | Per vCPU/memory-second | ~10 small pods across the session |
+| ECR storage | ~$0.10/GB-month | Images deleted before the repo itself was destroyed |
+
+Calculated from AWS's published `us-east-2` rates against real resource
+lifetimes, not Cost Explorer (which lags real time by up to 24h — this
+project's numbers were needed before that window closed). Every phase's
+teardown was independently verified against AWS directly, not just trusted
+from a command's exit code — the full session 1 breakdown is above in the
+build log for Phase 1's own numbers.
 
 ## Repo layout
 
