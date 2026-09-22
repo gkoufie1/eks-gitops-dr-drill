@@ -4,10 +4,10 @@ A GitOps-deployed service on EKS Fargate, backed by Aurora, with a real
 disaster-recovery drill: kill the database mid-traffic, restore it, and
 measure actual recovery time against a target RTO — not a claimed one.
 
-**Status:** 🚧 In progress — Phases 1-3 (VPC + EKS, Argo CD, and Aurora with
-a real app connected via IAM auth) are all live and verified as of this
-session. The DR drill itself and Datadog are still ahead — see the build
-log below.
+**Status:** 🚧 In progress — the DR drill itself is done: **target RTO 2
+minutes, measured 39.032 seconds, MET.** Full results in
+[`docs/dr-drill-001-results.md`](docs/dr-drill-001-results.md). Only
+Datadog is left — see the build log below.
 
 ## Why this exists
 
@@ -147,8 +147,18 @@ included, not copied.
         returned `{"id":1,...,"total_visits":1}`, then `{"id":2,...,
         "total_visits":2}` on the next call — actual inserts against
         Aurora, not a mocked response
-- [ ] **DR drill:** force-fail the primary during live traffic, restore,
-      measure real recovery time against a stated RTO target
+- [x] **DR drill:** added a second Aurora instance (a reader — a failover
+      needs somewhere real to promote to) and forced a genuine
+      `aws rds failover-db-cluster` during live traffic, not a reboot or a
+      simulation. **Target RTO 2 minutes (set before the drill), measured
+      39.032 seconds — MET.** ~10.5s of grace before impact, 5 failed
+      requests over ~16s of real downtime (clean `503`s from the app's own
+      `/readyz` check, not hangs), confirmed-stable after 5 consecutive
+      successful checks. Verified the writer/reader roles actually swapped
+      via `aws rds describe-db-clusters` — not just trusting the app's own
+      recovery signal. Full breakdown, timestamps, and the honest reading
+      of what each number means in
+      [`docs/dr-drill-001-results.md`](docs/dr-drill-001-results.md).
 - [ ] Datadog: cluster + Aurora instrumented, one real dashboard, one real
       alert (Fargate needs its own integration path — no DaemonSet, see
       ADR 001)
@@ -160,9 +170,10 @@ included, not copied.
       `describe-vpcs`, `describe-nat-gateways`, and `describe-addresses`,
       all tagged `Project=eks-gitops-dr-drill`, all empty
 
-**Phases 1-3 (VPC/EKS, Argo CD, Aurora + a real IAM-authenticated app) are
-complete and verified.** DR drill → Datadog → final cost pass pick up in a
-future session — each one gets its own deploy → verify → document →
+**Phases 1-4 (VPC/EKS, Argo CD, Aurora + a real IAM-authenticated app, and
+the DR drill itself) are complete and verified.** Only Datadog → final cost
+pass are left, picking up in a future session — each one gets its own
+deploy → verify → document →
 (destroy or hand off to the next phase) cycle, same as the rest of this
 project.
 

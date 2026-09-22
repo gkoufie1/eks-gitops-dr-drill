@@ -81,6 +81,19 @@ resource "aws_rds_cluster_instance" "main" {
   tags                 = var.tags
 }
 
+# A second instance exists so the DR drill has something real to fail over
+# to - `aws rds failover-db-cluster` needs a reader to promote. Without
+# this, "force-fail the primary" would just be a reboot, not an actual
+# Aurora failover. Aurora spreads cluster members across AZs on its own;
+# no explicit subnet/AZ pin is needed here.
+resource "aws_rds_cluster_instance" "reader" {
+  cluster_identifier = aws_rds_cluster.main.id
+  instance_class      = "db.serverless"
+  engine              = aws_rds_cluster.main.engine
+  engine_version       = aws_rds_cluster.main.engine_version
+  tags                 = var.tags
+}
+
 # ── IRSA — IAM ROLE FOR THE APP TO CONNECT VIA rds-db:connect ────
 resource "aws_iam_role" "app_db_access" {
   name = "${var.cluster_name}-app-db-access"
