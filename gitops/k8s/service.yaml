@@ -7,6 +7,12 @@ spec:
   selector:
     app: demo-app
   ports:
+    # targetPort must match the container's actual listening port (8080,
+    # per app/Dockerfile and deployment.yaml) - this was left at 80 when
+    # the image was swapped from nginxdemos/hello (which did listen on
+    # 80) to the real app, and broke port-forward/Service routing until
+    # caught here. The Service's own external port (80) doesn't need to
+    # match - that's just what other things in the cluster call it on.
     - port: 80
-      targetPort: 80
+      targetPort: 8080
   type: ClusterIP
