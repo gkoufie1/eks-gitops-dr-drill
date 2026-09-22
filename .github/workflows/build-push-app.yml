@@ -1,0 +1,35 @@
+name: Build and push demo app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - ".github/workflows/build-push-app.yml"
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write # required for OIDC — no stored AWS keys anywhere
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::829241815848:role/eks-gitops-dr-drill-dev-github-actions-ecr-push
+          aws-region: us-east-2
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr-login
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          push: true
+          tags: |
+            ${{ steps.ecr-login.outputs.registry }}/eks-gitops-dr-drill-dev-app:latest
+            ${{ steps.ecr-login.outputs.registry }}/eks-gitops-dr-drill-dev-app:${{ github.sha }}

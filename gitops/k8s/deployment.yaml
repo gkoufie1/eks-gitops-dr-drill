@@ -1,8 +1,9 @@
-# Placeholder demo workload — proves the GitOps pipeline end to end before
-# Aurora exists. When the DR drill phase adds a real database, this image
-# gets swapped for one that actually talks to it, through the same Argo CD
-# Application — the pipeline shouldn't need to change just because the
-# workload behind it does.
+# The real workload: a small FastAPI app (source in app/) that connects to
+# Aurora via IRSA-issued IAM tokens - no password in a Secret. Built and
+# pushed to ECR by .github/workflows/build-push-app.yml on every push to
+# app/. This is the same Argo CD Application that deployed the nginxdemos
+# placeholder earlier - swapping the image was the point of proving GitOps
+# worked before Aurora existed.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,26 +21,50 @@ spec:
       labels:
         app: demo-app
     spec:
+      serviceAccountName: demo-app
       containers:
+        # Known simplification, not an oversight: CI also tags every build
+        # with its git SHA, but pinning this manifest to that SHA would
+        # mean CI editing this file after each build (image automation -
+        # Argo CD Image Updater, or a CI step that commits the new tag).
+        # Out of scope for this phase; :latest plus ECR's own image
+        # scanning is the deliberate tradeoff for now.
         - name: demo-app
-          image: nginxdemos/hello:latest
+          image: 829241815848.dkr.ecr.us-east-2.amazonaws.com/eks-gitops-dr-drill-dev-app:latest
           ports:
-            - containerPort: 80
+            - containerPort: 8080
+          env:
+            - name: DB_HOST
+              value: eks-gitops-dr-drill-dev-aurora.cluster-cju8cuwsal5p.us-east-2.rds.amazonaws.com
+            - name: DB_NAME
+              value: drdrill
+            - name: DB_USER
+              value: app_iam_user
+            - name: AWS_REGION
+              value: us-east-2
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           resources:
             requests:
               cpu: 100m
               memory: 128Mi
+              ephemeral-storage: 256Mi
             limits:
+              cpu: 250m
               memory: 256Mi
+              ephemeral-storage: 512Mi
           readinessProbe:
             httpGet:
-              path: /
-              port: 80
+              path: /readyz
+              port: 8080
             initialDelaySeconds: 5
-            periodSeconds: 10
+            periodSeconds: 5
+            failureThreshold: 2
           livenessProbe:
             httpGet:
-              path: /
-              port: 80
+              path: /healthz
+              port: 8080
             initialDelaySeconds: 10
             periodSeconds: 20
