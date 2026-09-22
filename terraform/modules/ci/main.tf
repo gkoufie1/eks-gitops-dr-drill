@@ -35,6 +35,17 @@ resource "aws_ecr_lifecycle_policy" "app" {
 # allows one provider per unique URL per account, and it's meant to be
 # shared across projects, each with its own narrowly-scoped role like
 # this one.
+#
+# The first apply of this role used the plain "repo:owner/repo:*" sub
+# pattern and every workflow run failed with a generic "Not authorized
+# to perform sts:AssumeRoleWithWebIdentity." Root cause: this repo has
+# GitHub's immutable OIDC subject claims enabled (confirmed via
+# `gh api repos/OWNER/REPO/actions/oidc/customization/sub`) - a real
+# security feature that embeds stable numeric owner/repo IDs into the
+# sub claim so a renamed or transferred repo can't inherit another
+# repo's trust. That's a genuine improvement, not something to switch
+# off to make the simpler pattern work - var.oidc_sub_claim_prefix
+# below is set to the actual, confirmed claim format instead.
 resource "aws_iam_role" "github_actions" {
   name = "${var.cluster_name}-github-actions-ecr-push"
 
@@ -51,7 +62,7 @@ resource "aws_iam_role" "github_actions" {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
         StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repo}:*"
+          "token.actions.githubusercontent.com:sub" = "${var.oidc_sub_claim_prefix}:*"
         }
       }
     }]
