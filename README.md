@@ -4,8 +4,10 @@ A GitOps-deployed service on EKS Fargate, backed by Aurora, with a real
 disaster-recovery drill: kill the database mid-traffic, restore it, and
 measure actual recovery time against a target RTO — not a claimed one.
 
-**Status:** 🚧 In progress — built in one focused, cost-controlled session.
-Phase 1 (networking + cluster) below; later phases append as they're built.
+**Status:** 🚧 In progress — Phase 1 (VPC + Fargate-only EKS) deployed,
+verified, documented, and torn down in one session, ~$0.30-0.35 total.
+Currently at $0. Phases 2+ (Argo CD, Aurora, the DR drill itself, Datadog)
+pick up in a future session — see the build log below.
 
 ## Why this exists
 
@@ -101,20 +103,33 @@ included, not copied.
 - [ ] Datadog: cluster + Aurora instrumented, one real dashboard, one real
       alert (Fargate needs its own integration path — no DaemonSet, see
       ADR 001)
-- [ ] Cost pass: real spend for the session, what was rightsized and why
-- [ ] Full teardown, verified at $0
+- [x] Cost pass (Phase 1): ~$0.30-0.35, calculated from published us-east-2
+      rates × measured resource lifetime (Cost Explorer lags real time by
+      up to 24h, so this isn't the billed figure yet — see the Cost table)
+- [x] Phase 1 teardown, verified at $0 — `terragrunt destroy` exit code
+      alone isn't proof; confirmed separately via `aws eks list-clusters`,
+      `describe-vpcs`, `describe-nat-gateways`, and `describe-addresses`,
+      all tagged `Project=eks-gitops-dr-drill`, all empty
 
-## Cost (Phase 1)
+**Phase 1 (VPC + Fargate-only EKS) is complete, verified, and torn down.**
+Phases below (Argo CD → Aurora → DR drill → Datadog → final cost pass) pick
+up in a future session — each one gets its own deploy → verify → document →
+(destroy or hand off to the next phase) cycle, same as this one.
 
-| Resource | Rate | Notes |
-|---|---|---|
-| EKS control plane | $0.10/hr flat | Bills regardless of usage — the reason this is a one-session build |
-| 2× NAT Gateway | ~$0.045/hr each + data processing | One per AZ for real HA, not a shortcut |
-| Fargate pods | Per vCPU/memory-second requested | CoreDNS + Argo CD + demo app — a few cents for a session |
+## Cost (Phase 1) — actual, not estimated
 
-Everything here is destroyed (`terragrunt run-all destroy`) at the end of
-the build session — see the cost pass entry in the build log for the actual
-number.
+| Resource | Rate | Ran for | Cost |
+|---|---|---|---|
+| EKS control plane | $0.10/hr flat | ~1.0 hr | ~$0.10 |
+| 2× NAT Gateway | ~$0.045/hr each | ~2.1 hr | ~$0.19 |
+| Fargate (2× CoreDNS pod) | Per vCPU/memory-second | ~1.0 hr | ~$0.03 |
+| **Total** | | | **~$0.30-0.35** |
+
+Calculated from AWS's published `us-east-2` rates against each resource's
+actual creation/destruction timestamps (pulled via `aws eks describe-cluster`
+and `aws ec2 describe-nat-gateways`) — not yet reflected in Cost Explorer,
+which lags real time by up to 24h. Fully destroyed and independently
+verified at $0 (see the build log) at the end of this session.
 
 ## Repo layout
 
