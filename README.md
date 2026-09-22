@@ -74,6 +74,24 @@ of checks.
                     └─────────────────────────────────────┘
 ```
 
+## What's in this repo vs. what isn't
+
+Everything under `terraform/`, `gitops/`, `docs/` is this project's own —
+written here, committed here, and it's the actual source of truth for what
+the VPC, EKS cluster, and demo app look like. `gitops/argocd/application.yaml`
+in particular is the thing that makes GitOps real: it's how Argo CD knows to
+watch *this* repo's `gitops/k8s` path at all.
+
+**Argo CD's own installation is deliberately not in here.** It was installed
+by running `kubectl apply` straight against Argo CD's official upstream
+manifest (`raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml`)
+— the standard way to install it, maintained by the Argo project itself, the
+same pattern any cluster add-on (cert-manager, ingress-nginx, etc.) uses.
+Vendoring an upstream tool's own internals into a project repo would mean
+manually tracking its upstream releases instead of letting `kubectl apply`
+against their URL do that job. What *is* tracked here is the decision to
+install it, and everything it's pointed at managing.
+
 ## Why Terragrunt, not just Terraform
 
 The `terragrunt.hcl` root config bootstraps its own S3 state bucket and
