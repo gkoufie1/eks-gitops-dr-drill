@@ -4,10 +4,10 @@ A GitOps-deployed service on EKS Fargate, backed by Aurora, with a real
 disaster-recovery drill: kill the database mid-traffic, restore it, and
 measure actual recovery time against a target RTO — not a claimed one.
 
-**Status:** 🚧 In progress — Phase 1 (VPC + Fargate-only EKS) deployed,
-verified, documented, and torn down in one session, ~$0.30-0.35 total.
-Currently at $0. Phases 2+ (Argo CD, Aurora, the DR drill itself, Datadog)
-pick up in a future session — see the build log below.
+**Status:** 🚧 In progress — Phase 1 (VPC + EKS) and Phase 2 (Argo CD +
+GitOps-deployed demo app) are both live and verified as of this session.
+Aurora, the DR drill itself, and Datadog are still ahead — see the build
+log below.
 
 ## Why this exists
 
@@ -94,8 +94,15 @@ included, not copied.
 - [x] Deploy Phase 1, verify cluster reachable and CoreDNS actually running
       on Fargate — hit a real CoreDNS-stuck-Pending bug along the way (see
       above), not the one originally anticipated, fixed and verified
-- [ ] Argo CD installed via its own Fargate profile, GitOps-deploys a demo
-      workload into `apps`
+- [x] Argo CD installed via its own Fargate profile, GitOps-deploys a demo
+      workload into `apps` — all 7 Argo CD components came up `Running` on
+      the first try (unlike CoreDNS, their Fargate profile already existed
+      before they did); the CoreDNS race from Phase 1 recurred identically
+      on this redeploy, confirming it's a deterministic pattern on a
+      Fargate-only cluster, not a one-off fluke — same fix applied. Verified
+      past "Synced/Healthy" by actually curling the app through a real
+      `kubectl port-forward` tunnel: real `HTTP 200`, not just a reported
+      status. Argo CD's synced revision matched the exact git commit pushed.
 - [ ] Aurora (Postgres) provisioned, demo workload wired to it via IRSA —
       no password in a Secret
 - [ ] **DR drill:** force-fail the primary during live traffic, restore,
