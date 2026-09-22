@@ -4,9 +4,9 @@ A GitOps-deployed service on EKS Fargate, backed by Aurora, with a real
 disaster-recovery drill: kill the database mid-traffic, restore it, and
 measure actual recovery time against a target RTO — not a claimed one.
 
-**Status:** 🚧 In progress — Phase 1 (VPC + EKS) and Phase 2 (Argo CD +
-GitOps-deployed demo app) are both live and verified as of this session.
-Aurora, the DR drill itself, and Datadog are still ahead — see the build
+**Status:** 🚧 In progress — Phases 1-3 (VPC + EKS, Argo CD, and Aurora with
+a real app connected via IAM auth) are all live and verified as of this
+session. The DR drill itself and Datadog are still ahead — see the build
 log below.
 
 ## Why this exists
@@ -121,8 +121,32 @@ included, not copied.
       past "Synced/Healthy" by actually curling the app through a real
       `kubectl port-forward` tunnel: real `HTTP 200`, not just a reported
       status. Argo CD's synced revision matched the exact git commit pushed.
-- [ ] Aurora (Postgres) provisioned, demo workload wired to it via IRSA —
-      no password in a Secret
+- [x] Aurora PostgreSQL Serverless v2 (0.5-2 ACU) provisioned, IAM database
+      auth enabled, demo app (`app/`) wired to it via IRSA — no password in
+      a Secret, ever. Three real bugs hit and fixed in this phase alone:
+      - `engine_version = "16.6"` doesn't exist for aurora-postgresql (only
+        `16.6-limitless` does) — checked real available versions via
+        `aws rds describe-db-engine-versions` before picking `16.9`
+      - Every GitHub Actions run failed OIDC auth with a generic "Not
+        authorized" error — root cause was this repo having GitHub's
+        *immutable* OIDC subject claims enabled, which embeds numeric
+        owner/repo IDs into the `sub` claim instead of the plain
+        `owner/repo` form. Confirmed via `gh api .../actions/oidc/
+        customization/sub`, fixed by matching the trust policy to the real
+        claim — not by disabling a real security feature
+      - The Service's `targetPort` was left at `80` (correct for the
+        original `nginxdemos/hello` placeholder) after the image swap to
+        the real app, which listens on `8080` — pods were `Running` and
+        `Ready`, but nothing could actually reach them until this was caught
+      - The master password never touched a human or this project's own
+        logs: a short-lived, IRSA-scoped bootstrap pod read it directly
+        from Secrets Manager to create the IAM-mapped database user, and
+        that bootstrap role was deleted immediately after — least-duration,
+        not just least-privilege
+      - Verified past "Running" with real reads and writes: `GET /visits`
+        returned `{"id":1,...,"total_visits":1}`, then `{"id":2,...,
+        "total_visits":2}` on the next call — actual inserts against
+        Aurora, not a mocked response
 - [ ] **DR drill:** force-fail the primary during live traffic, restore,
       measure real recovery time against a stated RTO target
 - [ ] Datadog: cluster + Aurora instrumented, one real dashboard, one real
@@ -136,10 +160,11 @@ included, not copied.
       `describe-vpcs`, `describe-nat-gateways`, and `describe-addresses`,
       all tagged `Project=eks-gitops-dr-drill`, all empty
 
-**Phase 1 (VPC + Fargate-only EKS) is complete, verified, and torn down.**
-Phases below (Argo CD → Aurora → DR drill → Datadog → final cost pass) pick
-up in a future session — each one gets its own deploy → verify → document →
-(destroy or hand off to the next phase) cycle, same as this one.
+**Phases 1-3 (VPC/EKS, Argo CD, Aurora + a real IAM-authenticated app) are
+complete and verified.** DR drill → Datadog → final cost pass pick up in a
+future session — each one gets its own deploy → verify → document →
+(destroy or hand off to the next phase) cycle, same as the rest of this
+project.
 
 ## Cost (Phase 1) — actual, not estimated
 
